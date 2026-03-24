@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VulnScan — Vulnerability Scanning Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    :root {
+      --navy:   #1E3A5F;
+      --blue:   #2563EB;
+      --light:  #EFF6FF;
+      --slate:  #64748B;
+      --border: #E2E8F0;
+      --crit:   #DC2626;
+      --high:   #EA580C;
+      --med:    #D97706;
+      --low:    #16A34A;
+      --bg:     #F8FAFC;
+      --white:  #FFFFFF;
+      --card:   #FFFFFF;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #1E293B; }
+    
+    /* Layout */
+    .app { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; min-height: 100vh; background: var(--navy);
+      color: white; display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; z-index: 100;
+    }
+    .sidebar-logo {
+      padding: 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-logo .icon { font-size: 22px; }
+    .sidebar-logo .brand { font-size: 17px; font-weight: 700; }
+    .sidebar-logo .sub { font-size: 10px; opacity: .55; margin-top: 2px; }
+    .sidebar-nav { padding: 12px 10px; flex: 1; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 8px; cursor: pointer; font-size: 13.5px;
+      color: rgba(255,255,255,0.75); transition: all .15s; margin-bottom: 2px;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: rgba(255,255,255,0.12); color: white;
+    }
+    .nav-item.active { background: var(--blue); }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer {
+      padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 12px; opacity: .5;
+    }
+
+    .main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; }
+    .topbar {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 14px 28px; display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-title { font-size: 18px; font-weight: 600; color: var(--navy); }
+    .topbar-user {
+      display: flex; align-items: center; gap: 10px; font-size: 13px;
+    }
+    .avatar {
+      width: 34px; height: 34px; border-radius: 50%; background: var(--blue);
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px;
+    }
+    .content { padding: 28px; flex: 1; }
+
+    /* Cards */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 20px;
+    }
+    .card-title { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 16px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; display: flex; align-items: center; gap: 14px;
+    }
+    .stat-icon { font-size: 26px; width: 48px; height: 48px; border-radius: 10px;
+                 display: flex; align-items: center; justify-content: center; }
+    .stat-val { font-size: 24px; font-weight: 700; color: var(--navy); }
+    .stat-lbl { font-size: 12px; color: var(--slate); margin-top: 2px; }
+
+    /* Severity badges */
+    .badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+    .badge-Critical { background: #FEE2E2; color: var(--crit); }
+    .badge-High     { background: #FFEDD5; color: var(--high); }
+    .badge-Medium   { background: #FEF9C3; color: var(--med); }
+    .badge-Low      { background: #DCFCE7; color: var(--low); }
+    .badge-pending   { background: #E0E7FF; color: #4338CA; }
+    .badge-running   { background: #CFFAFE; color: #0E7490; }
+    .badge-completed { background: #DCFCE7; color: #15803D; }
+    .badge-failed    { background: #FEE2E2; color: #B91C1C; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+      border: none; transition: all .15s;
+    }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:hover { background: #1D4ED8; }
+    .btn-outline { background: white; color: var(--navy); border: 1.5px solid var(--border); }
+    .btn-outline:hover { background: var(--light); }
+    .btn-danger { background: #FEE2E2; color: var(--crit); }
+    .btn-danger:hover { background: #FECACA; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+
+    /* Forms */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+    .form-control {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 13px; outline: none; transition: border .15s;
+      background: white;
+    }
+    .form-control:focus { border-color: var(--blue); }
+    select.form-control { cursor: pointer; }
+    textarea.form-control { resize: vertical; min-height: 120px; font-family: monospace; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 14px; background: var(--light);
+         color: var(--navy); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: #F8FAFF; }
+    .empty-row { text-align: center; color: var(--slate); padding: 32px; font-size: 13px; }
+
+    /* Login */
+    .login-page {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy) 0%, #2563EB 100%);
+    }
+    .login-box {
+      background: white; border-radius: 14px; padding: 40px 36px;
+      width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo .shield { font-size: 46px; }
+    .login-logo h1 { font-size: 22px; font-weight: 700; color: var(--navy); margin-top: 8px; }
+    .login-logo p { font-size: 12px; color: var(--slate); }
+
+    /* Modal */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal {
+      background: white; border-radius: 12px; padding: 28px; width: 480px;
+      max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Alert */
+    .alert {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;
+    }
+    .alert-error { background: #FEE2E2; color: var(--crit); border: 1px solid #FECACA; }
+    .alert-success { background: #DCFCE7; color: #15803D; border: 1px solid #BBF7D0; }
+    .alert-info { background: #E0E7FF; color: #4338CA; border: 1px solid #C7D2FE; }
+
+    /* Severity bar */
+    .sev-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+    .sev-bar-label { width: 60px; font-weight: 600; }
+    .sev-bar-track { flex: 1; height: 10px; background: #F1F5F9; border-radius: 5px; overflow: hidden; }
+    .sev-bar-fill { height: 100%; border-radius: 5px; transition: width .4s; }
+    .sev-bar-count { width: 30px; text-align: right; font-weight: 600; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px; border: 2.5px solid #E2E8F0;
+      border-top-color: var(--blue); border-radius: 50%;
+      animation: spin .7s linear infinite; display: inline-block;
+    }
+    .spinner-lg { width: 36px; height: 36px; border-width: 4px; }
+    .loading { display: flex; align-items: center; justify-content: center;
+               gap: 12px; padding: 40px; color: var(--slate); font-size: 14px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab {
+      padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+      color: var(--slate); border-bottom: 2.5px solid transparent; transition: all .15s;
+    }
+    .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+    /* Code area */
+    .code-block {
+      background: #0F172A; color: #94A3B8; font-family: monospace;
+      font-size: 12px; padding: 16px; border-radius: 8px;
+      max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    }
+
+    /* Finding card */
+    .finding-card {
+      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .finding-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; cursor: pointer;
+      background: var(--light);
+    }
+    .finding-header:hover { background: #E8F0FE; }
+    .finding-body { padding: 16px; border-top: 1px solid var(--border); font-size: 13px; }
+    .finding-field { margin-bottom: 10px; }
+    .finding-field-label { font-size: 11px; font-weight: 700; color: var(--slate); text-transform: uppercase; margin-bottom: 3px; }
+    .finding-field-value { color: #1E293B; line-height: 1.5; }
+    .remediation-box {
+      background: #ECFDF5; border: 1px solid #BBF7D0; border-radius: 8px;
+      padding: 12px; margin-top: 10px;
+    }
+    .remediation-box .rlabel { font-size: 11px; font-weight: 700; color: #15803D;
+                               text-transform: uppercase; margin-bottom: 4px; }
+
+    /* Pulse */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulse { animation: pulse 1.5s ease-in-out infinite; }
+
+    /* Responsive hint */
+    @media (max-width: 900px) {
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect, useCallback } = React;
+const API = "http://localhost:5000/api";
+
+// ── API Helper ────────────────────────────────────────────────────────────────
+const api = async (path, opts = {}) => {
+  const token = localStorage.getItem("token");
+  const res = await fetch(API + path, {
+    headers: { "Content-Type":"application/json", ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+    ...opts,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+};
+
+// ── Severity utilities ────────────────────────────────────────────────────────
+const SEV_COLOR = { Critical:"#DC2626", High:"#EA580C", Medium:"#D97706", Low:"#16A34A" };
+const SBAR_COLOR = { Critical:"#DC2626", High:"#EA580C", Medium:"#D97706", Low:"#16A34A" };
+
+function Badge({ text, type }) {
+  const cls = type ? `badge badge-${type}` : `badge badge-${text}`;
+  return <span className={cls}>{text}</span>;
+}
+
+function SeverityBar({ counts, total }) {
+  const sevs = ["Critical","High","Medium","Low"];
+  return (
+    <div>
+      {sevs.map(s => (
+        <div key={s} className="sev-bar-row">
+          <span className="sev-bar-label" style={{ color: SEV_COLOR[s] }}>{s}</span>
+          <div className="sev-bar-track">
+            <div className="sev-bar-fill" style={{
+              width: total ? `${(counts[s]/total)*100}%` : "0%",
+              background: SBAR_COLOR[s],
+            }} />
+          </div>
+          <span className="sev-bar-count">{counts[s]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Login Page ────────────────────────────────────────────────────────────────
+function LoginPage({ onLogin }) {
+  const [form, setForm] = useState({ username:"admin", password:"Admin@1234!" });
+  const [mode, setMode] = useState("login");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async e => {
+    e.preventDefault(); setErr(""); setLoading(true);
+    try {
+      const path = mode === "login" ? "/auth/login" : "/auth/register";
+      const data = await api(path, { method:"POST", body: JSON.stringify(form) });
+      localStorage.setItem("token", data.token);
+      onLogin(data.user);
+    } catch(e) { setErr(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-box">
+        <div className="login-logo">
+          <div className="shield">🛡️</div>
+          <h1>VulnScan</h1>
+          <p>Vulnerability Scanning Tool</p>
+        </div>
+        {err && <div className="alert alert-error">{err}</div>}
+        <form onSubmit={submit}>
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input className="form-control" value={form.username}
+              onChange={e=>setForm({...form, username:e.target.value})} required />
+          </div>
+          {mode==="register" && (
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input className="form-control" type="email" value={form.email||""}
+                onChange={e=>setForm({...form, email:e.target.value})} required />
+            </div>
+          )}
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input className="form-control" type="password" value={form.password}
+              onChange={e=>setForm({...form, password:e.target.value})} required />
+          </div>
+          <button className="btn btn-primary" style={{width:"100%",justifyContent:"center"}} disabled={loading}>
+            {loading ? <span className="spinner"/> : (mode==="login" ? "Sign In" : "Create Account")}
+          </button>
+        </form>
+        <p style={{textAlign:"center",marginTop:16,fontSize:12,color:"var(--slate)"}}>
+          {mode==="login" ? "No account? " : "Have an account? "}
+          <span style={{color:"var(--blue)",cursor:"pointer",fontWeight:600}}
+            onClick={()=>setMode(mode==="login"?"register":"login")}>
+            {mode==="login" ? "Register" : "Sign in"}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({ user }) {
+  const [stats, setStats] = useState(null);
+  const [cves, setCves] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([api("/dashboard/stats"), api("/dashboard/recent-cves")])
+      .then(([s, c]) => { setStats(s); setCves(c); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="loading"><span className="spinner spinner-lg"/> Loading dashboard…</div>
+  );
+  if (!stats) return <div className="alert alert-error">Failed to load dashboard</div>;
+
+  const statCards = [
+    { icon:"🖥️", val: stats.total_assets,   lbl:"Assets",          bg:"#EFF6FF", ic:"#2563EB" },
+    { icon:"🔍", val: stats.total_scans,    lbl:"Scans Run",        bg:"#F0FDF4", ic:"#16A34A" },
+    { icon:"⚠️", val: stats.total_findings, lbl:"Total Findings",   bg:"#FFFBEB", ic:"#D97706" },
+    { icon:"🔴", val: stats.severity_counts?.Critical||0, lbl:"Critical Issues", bg:"#FEF2F2", ic:"#DC2626" },
+  ];
+
+  return (
+    <div>
+      <div className="stat-grid">
+        {statCards.map((s,i) => (
+          <div className="stat-card" key={i}>
+            <div className="stat-icon" style={{background:s.bg, color:s.ic}}>{s.icon}</div>
+            <div>
+              <div className="stat-val">{s.val}</div>
+              <div className="stat-lbl">{s.lbl}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div className="card">
+          <div className="card-title">Vulnerability Severity Distribution</div>
+          <SeverityBar counts={stats.severity_counts||{}} total={stats.total_findings||1} />
+        </div>
+
+        <div className="card">
+          <div className="card-title">Recent Scans</div>
+          {stats.recent_scans?.length === 0
+            ? <p style={{fontSize:13,color:"var(--slate)"}}>No scans yet. Add an asset and start scanning.</p>
+            : stats.recent_scans?.map(s => (
+              <div key={s.id} style={{display:"flex",justifyContent:"space-between",
+                alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:13}}>{s.target}</div>
+                  <div style={{fontSize:11,color:"var(--slate)"}}>{s.scan_type} · {s.created_at?.slice(0,10)}</div>
+                </div>
+                <Badge text={s.status} />
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <div className="card" style={{marginTop:0}}>
+        <div className="card-title">🌐 Live CVE Feed (Last 7 Days)</div>
+        {cves.length === 0
+          ? <div className="alert alert-info">CVE feed unavailable — check NVD API connectivity.</div>
+          : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>CVE ID</th><th>Severity</th><th>CVSS</th><th>Published</th><th>Summary</th></tr></thead>
+              <tbody>
+                {cves.map(c => (
+                  <tr key={c.cve_id}>
+                    <td style={{fontWeight:600,color:"var(--blue)"}}>{c.cve_id}</td>
+                    <td><Badge text={c.severity} /></td>
+                    <td style={{fontWeight:700,color:SEV_COLOR[c.severity]}}>{c.cvss_score}</td>
+                    <td style={{fontSize:12,color:"var(--slate)"}}>{c.published?.slice(0,10)}</td>
+                    <td style={{fontSize:12,maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {c.description?.slice(0,120)}…
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Assets Page ───────────────────────────────────────────────────────────────
+function AssetsPage() {
+  const [assets, setAssets] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name:"",ip_address:"",hostname:"",asset_type:"host",description:"" });
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = () => api("/assets").then(setAssets).catch(()=>{}).finally(()=>setLoading(false));
+  useEffect(()=>{ load(); }, []);
+
+  const save = async () => {
+    setErr("");
+    try {
+      await api("/assets", { method:"POST", body: JSON.stringify(form) });
+      setShowModal(false);
+      setForm({ name:"",ip_address:"",hostname:"",asset_type:"host",description:"" });
+      load();
+    } catch(e) { setErr(e.message); }
+  };
+
+  const del = async id => {
+    if(!confirm("Delete this asset?")) return;
+    await api(`/assets/${id}`, { method:"DELETE" });
+    load();
+  };
+
+  if (loading) return <div className="loading"><span className="spinner spinner-lg"/> Loading…</div>;
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontSize:13,color:"var(--slate)"}}>
+          {assets.length} asset{assets.length!==1?"s":""} registered
+        </div>
+        <button className="btn btn-primary" onClick={()=>setShowModal(true)}>
+          + Add Asset
+        </button>
+      </div>
+
+      <div className="card" style={{padding:0}}>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>IP / Hostname</th><th>Type</th><th>Description</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {assets.length===0 && <tr><td colSpan={5} className="empty-row">No assets yet. Add one to get started.</td></tr>}
+              {assets.map(a => (
+                <tr key={a.id}>
+                  <td style={{fontWeight:600}}>{a.name}</td>
+                  <td style={{fontFamily:"monospace",fontSize:12}}>{a.ip_address || a.hostname}</td>
+                  <td><span className="badge badge-pending">{a.asset_type}</span></td>
+                  <td style={{fontSize:12,color:"var(--slate)"}}>{a.description||"—"}</td>
+                  <td>
+                    <button className="btn btn-danger btn-sm" onClick={()=>del(a.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="overlay">
+          <div className="modal">
+            <div className="modal-title">➕ Add New Asset</div>
+            {err && <div className="alert alert-error">{err}</div>}
+            <div className="form-group">
+              <label className="form-label">Asset Name *</label>
+              <input className="form-control" placeholder="e.g. Web Server" value={form.name}
+                onChange={e=>setForm({...form,name:e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">IP Address</label>
+              <input className="form-control" placeholder="192.168.1.1" value={form.ip_address}
+                onChange={e=>setForm({...form,ip_address:e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Hostname</label>
+              <input className="form-control" placeholder="example.com" value={form.hostname}
+                onChange={e=>setForm({...form,hostname:e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Asset Type</label>
+              <select className="form-control" value={form.asset_type}
+                onChange={e=>setForm({...form,asset_type:e.target.value})}>
+                <option value="host">Host</option>
+                <option value="server">Server</option>
+                <option value="network">Network</option>
+                <option value="webapp">Web Application</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Description</label>
+              <input className="form-control" placeholder="Optional description" value={form.description}
+                onChange={e=>setForm({...form,description:e.target.value})} />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save}>Save Asset</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Scans Page ────────────────────────────────────────────────────────────────
+function ScansPage() {
+  const [scans, setScans] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [tab, setTab] = useState("network"); // network | code
+  const [form, setForm] = useState({ asset_id:"", scan_type:"full" });
+  const [codeForm, setCodeForm] = useState({ asset_id:"", code:"" });
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [results, setResults] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+
+  const load = () => {
+    Promise.all([api("/scans"), api("/assets")])
+      .then(([s,a]) => { setScans(s); setAssets(a); })
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{ load(); }, []);
+
+  // Poll running scans
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (scans.some(s=>s.status==="running"||s.status==="pending")) load();
+    }, 4000);
+    return ()=>clearInterval(id);
+  }, [scans]);
+
+  const startScan = async () => {
+    await api("/scans", { method:"POST", body: JSON.stringify(form) });
+    setShowModal(false);
+    load();
+  };
+
+  const startCodeScan = async () => {
+    await api("/scans/code", { method:"POST", body: JSON.stringify(codeForm) });
+    setShowModal(false);
+    load();
+  };
+
+  const viewResults = async scan => {
+    setSelected(scan); setResultsLoading(true); setResults(null);
+    try {
+      const data = await api(`/scans/${scan.id}/results`);
+      setResults(data);
+    } catch(e) {}
+    setResultsLoading(false);
+  };
+
+  const [openFindings, setOpenFindings] = useState({});
+  const toggleFinding = id => setOpenFindings(p=>({...p,[id]:!p[id]}));
+
+  const genReport = async scanId => {
+    try {
+      const r = await api(`/reports/generate/${scanId}`, { method:"POST" });
+      alert(`Report generated: ${r.report.filename}\nDownload it from the Reports page.`);
+    } catch(e) { alert("Report error: " + e.message); }
+  };
+
+  if (loading) return <div className="loading"><span className="spinner spinner-lg"/> Loading…</div>;
+
+  if (selected) {
+    const sev_order = { Critical:0,High:1,Medium:2,Low:3 };
+    const sorted = results?.results?.slice().sort((a,b)=>sev_order[a.severity]-sev_order[b.severity]) || [];
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <button className="btn btn-outline btn-sm" onClick={()=>{ setSelected(null); setResults(null); }}>
+            ← Back
+          </button>
+          <div>
+            <div style={{fontWeight:700,fontSize:16}}>Scan Results: {selected.target}</div>
+            <div style={{fontSize:12,color:"var(--slate)"}}>{selected.scan_type} · {selected.created_at?.slice(0,10)}</div>
+          </div>
+          <span style={{marginLeft:"auto"}}><Badge text={selected.status} /></span>
+          {selected.status==="completed" && (
+            <button className="btn btn-primary btn-sm" onClick={()=>genReport(selected.id)}>
+              📄 Generate PDF
+            </button>
+          )}
+        </div>
+
+        {resultsLoading && <div className="loading"><span className="spinner"/> Loading findings…</div>}
+        {results && (
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:20}}>
+              {["Critical","High","Medium","Low"].map(s => (
+                <div key={s} className="stat-card" style={{padding:14}}>
+                  <div style={{color:SEV_COLOR[s],fontSize:22,fontWeight:700}}>{results.summary[s.toLowerCase()]||0}</div>
+                  <div style={{fontSize:12,color:"var(--slate)"}}>{s}</div>
+                </div>
+              ))}
+              <div className="stat-card" style={{padding:14}}>
+                <div style={{fontSize:22,fontWeight:700}}>{results.summary.total}</div>
+                <div style={{fontSize:12,color:"var(--slate)"}}>Total</div>
+              </div>
+            </div>
+
+            {sorted.length===0
+              ? <div className="alert alert-success">✅ No vulnerabilities detected in this scan.</div>
+              : sorted.map((r,i) => (
+              <div key={r.id} className="finding-card">
+                <div className="finding-header" onClick={()=>toggleFinding(r.id)}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <Badge text={r.severity} />
+                    <span style={{fontWeight:600,fontSize:13}}>
+                      {r.finding_type?.replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}
+                      {r.port ? ` — Port ${r.port}/${r.protocol}` : ""}
+                      {r.service ? ` (${r.service})` : ""}
+                    </span>
+                  </div>
+                  <span style={{fontSize:16}}>{openFindings[r.id]?"▲":"▼"}</span>
+                </div>
+                {openFindings[r.id] && (
+                  <div className="finding-body">
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                      {r.port && <div className="finding-field">
+                        <div className="finding-field-label">Port / Protocol</div>
+                        <div className="finding-field-value" style={{fontFamily:"monospace"}}>{r.port}/{r.protocol}</div>
+                      </div>}
+                      {r.service && <div className="finding-field">
+                        <div className="finding-field-label">Service</div>
+                        <div className="finding-field-value">{r.service}</div>
+                      </div>}
+                      {r.version && r.version!=="unknown" && <div className="finding-field">
+                        <div className="finding-field-label">Version</div>
+                        <div className="finding-field-value">{r.version}</div>
+                      </div>}
+                      {r.cve && <div className="finding-field">
+                        <div className="finding-field-label">CVE ID</div>
+                        <div className="finding-field-value" style={{color:"var(--blue)",fontWeight:600}}>{r.cve}</div>
+                      </div>}
+                      {r.cvss_score && <div className="finding-field">
+                        <div className="finding-field-label">CVSS Score</div>
+                        <div className="finding-field-value" style={{fontWeight:700,color:SEV_COLOR[r.severity]}}>{r.cvss_score}</div>
+                      </div>}
+                    </div>
+                    <div className="finding-field">
+                      <div className="finding-field-label">Description</div>
+                      <div className="finding-field-value">{r.description}</div>
+                    </div>
+                    <div className="remediation-box">
+                      <div className="rlabel">✅ Remediation Steps</div>
+                      <div style={{fontSize:13,lineHeight:1.6}}>{r.remediation}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{fontSize:13,color:"var(--slate)"}}>{scans.length} scan{scans.length!==1?"s":""} total</div>
+        <button className="btn btn-primary" onClick={()=>setShowModal(true)}>+ New Scan</button>
+      </div>
+
+      <div className="card" style={{padding:0}}>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Target</th><th>Type</th><th>Status</th><th>Findings</th><th>Started</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {scans.length===0 && <tr><td colSpan={6} className="empty-row">No scans yet. Add assets and start scanning.</td></tr>}
+              {scans.map(s => (
+                <tr key={s.id}>
+                  <td style={{fontWeight:600,fontFamily:"monospace",fontSize:12}}>{s.target}</td>
+                  <td><span className="badge badge-pending">{s.scan_type}</span></td>
+                  <td>
+                    <Badge text={s.status} />
+                    {(s.status==="running"||s.status==="pending") && (
+                      <span className="spinner" style={{marginLeft:8,verticalAlign:"middle"}}/>
+                    )}
+                  </td>
+                  <td style={{fontWeight:600}}>{s.result_count}</td>
+                  <td style={{fontSize:12,color:"var(--slate)"}}>{s.started_at?.slice(0,16)||"—"}</td>
+                  <td>
+                    <button className="btn btn-outline btn-sm" onClick={()=>viewResults(s)}>
+                      View Results
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="overlay">
+          <div className="modal">
+            <div className="modal-title">🔍 New Scan</div>
+            <div className="tabs">
+              <div className={`tab ${tab==="network"?"active":""}`} onClick={()=>setTab("network")}>
+                🌐 Network / Port Scan
+              </div>
+              <div className={`tab ${tab==="code"?"active":""}`} onClick={()=>setTab("code")}>
+                💻 Code Scan (Bandit + YARA)
+              </div>
+            </div>
+
+            {tab==="network" && (
+              <>
+                <div className="alert alert-info">
+                  ⚠️ <strong>Authorization Required:</strong> Only scan systems you own or have explicit written permission to scan.
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Select Asset *</label>
+                  <select className="form-control" value={form.asset_id}
+                    onChange={e=>setForm({...form,asset_id:e.target.value})}>
+                    <option value="">— Choose asset —</option>
+                    {assets.map(a=><option key={a.id} value={a.id}>{a.name} ({a.ip_address||a.hostname})</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Scan Type</label>
+                  <select className="form-control" value={form.scan_type}
+                    onChange={e=>setForm({...form,scan_type:e.target.value})}>
+                    <option value="quick">Quick (Top 100 ports)</option>
+                    <option value="port">Port (1–1024)</option>
+                    <option value="full">Full (All 65535 ports)</option>
+                  </select>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-outline" onClick={()=>setShowModal(false)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={startScan} disabled={!form.asset_id}>
+                    🚀 Start Scan
+                  </button>
+                </div>
+              </>
+            )}
+
+            {tab==="code" && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Select Asset *</label>
+                  <select className="form-control" value={codeForm.asset_id}
+                    onChange={e=>setCodeForm({...codeForm,asset_id:e.target.value})}>
+                    <option value="">— Choose asset —</option>
+                    {assets.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Python Code to Scan *</label>
+                  <textarea className="form-control" rows={8} value={codeForm.code}
+                    placeholder="Paste Python code here for Bandit + YARA analysis…"
+                    onChange={e=>setCodeForm({...codeForm,code:e.target.value})} />
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-outline" onClick={()=>setShowModal(false)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={startCodeScan}
+                    disabled={!codeForm.asset_id||!codeForm.code}>
+                    🔬 Analyse Code
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Reports Page ──────────────────────────────────────────────────────────────
+function ReportsPage() {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    api("/reports").then(setReports).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
+
+  const download = rid => {
+    const token = localStorage.getItem("token");
+    window.open(`${API}/reports/${rid}/download?token=${token}`, "_blank");
+  };
+
+  if (loading) return <div className="loading"><span className="spinner spinner-lg"/></div>;
+
+  return (
+    <div>
+      <div className="alert alert-info" style={{marginBottom:20}}>
+        📄 Reports are generated as PDF files from completed scans. Go to <b>Scans → View Results</b> to generate one.
+      </div>
+      <div className="card" style={{padding:0}}>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Report File</th><th>Scan ID</th><th>Generated</th><th>Download</th></tr></thead>
+            <tbody>
+              {reports.length===0 && <tr><td colSpan={4} className="empty-row">No reports generated yet.</td></tr>}
+              {reports.map(r => (
+                <tr key={r.id}>
+                  <td style={{fontFamily:"monospace",fontSize:12}}>{r.filename}</td>
+                  <td>#{r.scan_id}</td>
+                  <td style={{fontSize:12,color:"var(--slate)"}}>{r.created_at?.slice(0,16)}</td>
+                  <td>
+                    <button className="btn btn-primary btn-sm" onClick={()=>download(r.id)}>
+                      ⬇ Download PDF
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Users Page (admin) ────────────────────────────────────────────────────────
+function UsersPage() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => api("/auth/users").then(setUsers).catch(()=>{}).finally(()=>setLoading(false));
+  useEffect(()=>{ load(); }, []);
+
+  const toggle = async (u) => {
+    await api(`/auth/users/${u.id}`, { method:"PUT", body: JSON.stringify({ is_active: !u.is_active }) });
+    load();
+  };
+
+  if (loading) return <div className="loading"><span className="spinner spinner-lg"/></div>;
+
+  return (
+    <div className="card" style={{padding:0}}>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id}>
+                <td style={{fontWeight:600}}>{u.username}</td>
+                <td style={{fontSize:12}}>{u.email}</td>
+                <td><Badge text={u.role} type={u.role==="admin"?"running":"pending"} /></td>
+                <td><Badge text={u.is_active?"Active":"Disabled"} type={u.is_active?"completed":"failed"} /></td>
+                <td style={{fontSize:12,color:"var(--slate)"}}>{u.created_at?.slice(0,10)}</td>
+                <td>
+                  <button className={`btn btn-sm ${u.is_active?"btn-danger":"btn-outline"}`}
+                    onClick={()=>toggle(u)}>
+                    {u.is_active?"Disable":"Enable"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+const PAGES = [
+  { id:"dashboard", label:"Dashboard",  icon:"📊" },
+  { id:"assets",    label:"Assets",     icon:"🖥️" },
+  { id:"scans",     label:"Scans",      icon:"🔍" },
+  { id:"reports",   label:"Reports",    icon:"📄" },
+];
+const ADMIN_PAGES = [
+  { id:"users", label:"Users", icon:"👥" },
+];
+
+const PAGE_TITLES = {
+  dashboard: "Dashboard",
+  assets:    "Asset Management",
+  scans:     "Vulnerability Scans",
+  reports:   "Reports",
+  users:     "User Management",
+};
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [page, setPage] = useState("dashboard");
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(()=>{
+    if (localStorage.getItem("token")) {
+      api("/auth/me").then(setUser).catch(()=>localStorage.removeItem("token"))
+        .finally(()=>setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setUser(null);
+    setPage("dashboard");
+  };
+
+  if (authLoading) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh"}}>
+      <span className="spinner spinner-lg"/>
+    </div>
+  );
+
+  if (!user) return <LoginPage onLogin={u=>{ setUser(u); }} />;
+
+  const allPages = [...PAGES, ...(user.role==="admin" ? ADMIN_PAGES : [])];
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <span className="icon">🛡️</span>
+          <div>
+            <div className="brand">VulnScan</div>
+            <div className="sub">Cyber Security</div>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {allPages.map(p => (
+            <div key={p.id} className={`nav-item ${page===p.id?"active":""}`}
+              onClick={()=>setPage(p.id)}>
+              <span className="nav-icon">{p.icon}</span>
+              {p.label}
+            </div>
+          ))}
+          <div className="nav-item" onClick={logout} style={{marginTop:"auto"}}>
+            <span className="nav-icon">🚪</span>Sign Out
+          </div>
+        </nav>
+        <div className="sidebar-footer">VulnScan © 2026</div>
+      </aside>
+
+      <main className="main">
+        <div className="topbar">
+          <div className="topbar-title">{PAGE_TITLES[page]}</div>
+          <div className="topbar-user">
+            <div style={{textAlign:"right"}}>
+              <div style={{fontWeight:600,fontSize:13}}>{user.username}</div>
+              <div style={{fontSize:11,color:"var(--slate)"}}>{user.role}</div>
+            </div>
+            <div className="avatar">{user.username[0].toUpperCase()}</div>
+          </div>
+        </div>
+
+        <div className="content">
+          {page==="dashboard" && <Dashboard user={user} />}
+          {page==="assets"    && <AssetsPage />}
+          {page==="scans"     && <ScansPage />}
+          {page==="reports"   && <ReportsPage />}
+          {page==="users"     && user.role==="admin" && <UsersPage />}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
