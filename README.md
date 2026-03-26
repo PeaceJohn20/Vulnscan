@@ -1,4 +1,4 @@
-# 🛡️ VulnScan — Vulnerability Scanning Tool
+ 🛡️ VulnScan — Vulnerability Scanning Tool
 
 **Design and Implementation of a Vulnerability Scanning Tool**
 
@@ -11,9 +11,11 @@
 4. [Scope](#scope)
 5. [Installation](#installation)
 6. [Running the Application](#running-the-application)
-7. [Usage Guide](#usage-guide)
-8. [API Reference](#api-reference)
-9. [Ethical & Legal Notice](#ethical--legal-notice)
+7. [LAN Deployment](#lan-deployment)
+8. [CVE Offline Support](#cve-offline-support)
+9. [Usage Guide](#usage-guide)
+10. [API Reference](#api-reference)
+11. [Ethical & Legal Notice](#ethical--legal-notice)
 
 ---
 
@@ -90,8 +92,6 @@ VulnScan is a web-based vulnerability scanning platform built for non-experts. I
 
 ## Scope
 
-This tool operates strictly within the following boundaries as defined in Chapter 1.6:
-
 ✅ **In Scope:**
 - Identifying open ports and running services on target systems
 - Detecting outdated software versions and weak configurations
@@ -126,12 +126,30 @@ This tool operates strictly within the following boundaries as defined in Chapte
 cd /path/to/vulnscan
 ```
 
-### Step 2 — Install Python Dependencies
+### Step 2 — Create Virtual Environment
+
+A virtual environment is required to avoid system package conflicts, especially on Kali Linux and other externally-managed Python environments.
 
 ```bash
 cd backend
 python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+```
+
+### Step 3 — Activate Virtual Environment
+
+```bash
+# Linux / macOS
+source venv/bin/activate
+
+# Windows
+venv\Scripts\activate
+```
+
+> You will see `(venv)` appear at the start of your terminal line when activated. Always activate the virtual environment before running any pip or python commands.
+
+### Step 4 — Install Python Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -151,13 +169,13 @@ sqlalchemy==2.0.31
 ```
 
 > **Note on yara-python:** May require build tools.
-> Ubuntu: `sudo apt install build-essential libssl-dev`
+> Ubuntu/Kali: `sudo apt install build-essential libssl-dev python3-dev -y`
 > macOS: `xcode-select --install`
 
-### Step 3 — Install Nmap (Port Scanning)
+### Step 5 — Install Nmap (Port Scanning)
 
 ```bash
-# Ubuntu/Debian
+# Ubuntu/Debian/Kali
 sudo apt update && sudo apt install nmap
 
 # CentOS/RHEL
@@ -195,13 +213,193 @@ python app.py
 # Open: frontend/index.html
 ```
 
+> **Note:** SQLite database is created automatically in `backend/instance/vulnscan.db` on first run.
+
+### Verify Database Tables
+
+After starting the backend, confirm all tables were created:
+
+```bash
+sqlite3 backend/instance/vulnscan.db ".tables"
+```
+
+Expected output:
+```
+assets    reports    scan_results    scans    users    vulnerabilities
+```
+
 ### Default Credentials
 
 | Role | Username | Password |
 |------|----------|----------|
-| Admin | `admin` | `Admin@1234!` |
+| Admin | `Admin` | `Admin@1234!` |
 
 > Change the admin password immediately after first login via the Users page.
+
+---
+
+## LAN Deployment
+
+VulnScan supports multi-user access over a local network. Only the server owner needs to install and run VulnScan. All other users simply open a browser.
+
+### How It Works
+
+```
+[Server Machine — runs VulnScan]
+        │
+        │  LAN (WiFi or Cable)
+        │
+   ┌────┴────┬──────────┐
+   │         │          │
+ Laptop    Phone    Desktop
+ (browser) (browser) (browser)
+```
+
+### Server Owner Setup
+
+```bash
+# Start the backend (makes it available on the network)
+cd backend
+source venv/bin/activate
+python app.py
+```
+
+The backend binds to `0.0.0.0` by default, meaning it is accessible from any device on the same network.
+
+### Other Users (No Installation Required)
+
+1. Connect to the same WiFi or LAN as the server machine
+2. Open any browser
+3. Navigate to: `http://<server-ip>:5000`
+
+To find your server IP:
+
+```bash
+ip a
+# Look for your local IP e.g. 192.168.1.x or 192.168.83.x
+```
+
+Example: `http://192.168.83.137:5000`
+
+---
+
+## CVE Offline Support
+
+VulnScan supports **hybrid CVE mode** — it queries the NIST NVD API when online and automatically falls back to a local SQLite cache when offline.
+
+### How It Works
+
+```
+Online:
+VulnScan → NVD API → Fetch CVEs → Save to SQLite → Return results
+
+Offline:
+VulnScan → NVD API unreachable → Query local SQLite → Return cached results
+```
+
+### CVE Mode Behaviour
+
+| Mode | Source | Behaviour |
+|------|--------|-----------|
+| Online | NIST NVD API | Fetches live CVEs and caches them locally |
+| Offline | Local SQLite | Queries previously cached CVEs automatically |
+| Dashboard (online) | NIST NVD API | Shows live CVE feed |
+| Dashboard (offline) | Local SQLite | Shows most recently cached CVEs |
+
+> CVE caching happens automatically every time a scan is run while online. The more scans run online, the richer the offline cache becomes.
+
+### Pre-Populating the CVE Database (Recommended)
+
+To maximise offline CVE coverage, bulk download CVEs from the NVD API before going offline.
+
+#### Step 1 — Create the download script
+
+```bash
+cd backend
+nano nvd_bulk_download.py
+```
+
+Paste the following:
+
+```python
+import requests
+import json
+import time
+
+NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+OUTPUT_FILE = "nvd_bulk_cves.json"
+
+def fetch_all_cves():
+    all_cves = []
+    start = 0
+    page_size = 2000
+    total = None
+
+    print("[NVD] Starting bulk CVE download...")
+
+    while True:
+        params = {
+            "startIndex": start,
+            "resultsPerPage": page_size
+        }
+        try:
+            resp = requests.get(NVD_API, params=params, timeout=30,
+                                headers={"User-Agent": "VulnScan/1.0"})
+            if resp.status_code != 200:
+                print(f"[NVD] Error {resp.status_code} at index {start}")
+                break
+
+            data = resp.json()
+
+            if total is None:
+                total = data.get("totalResults", 0)
+                print(f"[NVD] Total CVEs available: {total}")
+
+            vulns = data.get("vulnerabilities", [])
+            if not vulns:
+                break
+
+            all_cves.extend(vulns)
+            start += len(vulns)
+            print(f"[NVD] Downloaded {start}/{total} CVEs...")
+
+            if len(all_cves) % 10000 == 0:
+                save_progress(all_cves)
+
+            time.sleep(6)  # Respect NVD rate limit (5 req/30s)
+
+        except Exception as e:
+            print(f"[NVD] Error: {e} — retrying in 30s...")
+            time.sleep(30)
+
+    print(f"[NVD] Download complete! Total: {len(all_cves)} CVEs")
+    save_progress(all_cves)
+
+def save_progress(cves):
+    with open(OUTPUT_FILE, "w") as f:
+        json.dump(cves, f)
+    print(f"[NVD] Saved {len(cves)} CVEs to {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    fetch_all_cves()
+```
+
+#### Step 2 — Run the download
+
+```bash
+source venv/bin/activate
+python nvd_bulk_download.py
+```
+
+> ⚠️ This process takes 30–60 minutes due to NVD API rate limits. Progress is saved every 10,000 CVEs so it can be safely interrupted and resumed.
+
+#### Step 3 — Import into SQLite
+
+After download completes, import the CVEs into your local database:
+
+```bash
+python import_nvd.py
+```
 
 ---
 
@@ -249,7 +447,7 @@ Navigate to **Assets → Add Asset**
 - Click **Download PDF** to save it locally
 
 ### 6. Monitor CVE Feed
-The Dashboard shows the last 7 days of CVEs published to the NIST NVD, giving real-time threat intelligence.
+The Dashboard shows the last 7 days of CVEs published to the NIST NVD, giving real-time threat intelligence. When offline, the most recently cached CVEs are displayed instead.
 
 ---
 
@@ -312,8 +510,10 @@ Six entities (matching the ERD in Chapter 3.4.3):
 - **Asset** — IP/hostname resources being monitored
 - **Scan** — scanning process run against an asset
 - **ScanResult** — individual findings from each scan
-- **Vulnerability** — CVE records from NVD database
+- **Vulnerability** — CVE records from NVD database (also used as local offline cache)
 - **Report** — PDF documentation of scan findings
+
+> **Database Location:** SQLite database is stored at `backend/instance/vulnscan.db`
 
 ---
 
@@ -321,7 +521,7 @@ Six entities (matching the ERD in Chapter 3.4.3):
 
 > This tool is provided strictly for **authorized security testing** only.
 
-**Authorized use cases** (Chapter 3.5):
+**Authorized use cases** :
 - Individual developers testing their own systems
 - Students conducting academic/educational research on owned lab systems
 - Authorized bug bounty programs
