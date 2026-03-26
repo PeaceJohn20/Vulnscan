@@ -202,8 +202,8 @@ class Report(db.Model):
 def init_db():
     db.create_all()
     if not User.query.filter_by(role="admin").first():
-        admin = User(username="Peace", email="peacejohnwazza450@gmail.com", role="admin")
-        admin.set_password("Justdoit@25")
+        admin = User(username="Admin", email="admin@vulnscan.local", role="admin")
+        admin.set_password("Admin@123!")
         db.session.add(admin)
         db.session.commit()
-        print("[VulnScan] Default admin seeded: Peace / Justdoit@25")
+        print("[VulnScan] Default admin seeded: Admin / Admin@123!")
