@@ -8,7 +8,7 @@ import os
 # Ensure Python finds all modules in the backend folder
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from database import db, init_db
@@ -42,6 +42,10 @@ def create_app():
 
     with app.app_context():
         init_db()
+ 
+    @app.route('/')
+    def serve_frontend():
+        return send_from_directory(os.path.join(os.path.dirname(__file__), '../frontend'), 'index.html')
 
     return app
 

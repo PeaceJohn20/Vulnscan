@@ -31,10 +31,14 @@ fi
 mkdir -p "$BACKEND/reports"
 
 # Install dependencies
-echo ""
 echo "Installing dependencies..."
+cd "$SCRIPT_DIR"
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
+source venv/bin/activate
 cd "$BACKEND"
-pip3 install -q flask flask-cors flask-jwt-extended flask-sqlalchemy \
+pip install -q flask flask-cors flask-jwt-extended flask-sqlalchemy \
   python-nmap bandit reportlab requests python-dotenv bcrypt sqlalchemy
 
 echo ""
