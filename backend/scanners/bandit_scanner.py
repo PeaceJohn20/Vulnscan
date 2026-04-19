@@ -96,7 +96,7 @@ def scan_code(file_path: str) -> Dict[str, Any]:
 
     try:
         result = subprocess.run(
-            ["bandit", "-r", "-f", "json", "-ll", file_path],
+         ["py", "-3.11", "-m", "bandit", "-r", "-f", "json", "-l", "-i", file_path],
             capture_output=True,
             text=True,
             timeout=120,
