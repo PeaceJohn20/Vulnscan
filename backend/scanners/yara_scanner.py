@@ -117,6 +117,103 @@ rule Sensitive_Data_Exposure {
     condition:
         any of them
 }
+rule Python_Reverse_Shell {
+    meta:
+        description = "Detects Python reverse shell patterns"
+        severity = "Critical"
+        remediation = "Remove this code immediately and investigate system for compromise."
+    strings:
+        $r1 = "socket.connect" nocase
+        $r2 = "socket.bind" nocase
+        $r3 = "os.dup2" nocase
+        $r4 = "/bin/sh" nocase
+        $r5 = "s.fileno()" nocase
+    condition:
+        2 of them
+}
+
+rule Python_Backdoor {
+    meta:
+        description = "Detects Python backdoor/RAT patterns"
+        severity = "Critical"
+        remediation = "Remove backdoor code immediately and audit all system access."
+    strings:
+        $b1 = "socket.AF_INET" nocase
+        $b2 = "s.listen(" nocase
+        $b3 = "cmd.exe" nocase
+        $b4 = "s.accept()" nocase
+    condition:
+        2 of them
+}
+
+rule Python_Data_Exfiltration {
+    meta:
+        description = "Detects potential data exfiltration via FTP or network"
+        severity = "Critical"
+        remediation = "Remove exfiltration code and rotate all credentials immediately."
+    strings:
+        $e1 = "ftplib" nocase
+        $e2 = "storbinary" nocase
+        $e3 = "evil-server" nocase
+        $e4 = "ftp.login" nocase
+    condition:
+        2 of them
+}
+
+rule Python_Obfuscation {
+    meta:
+        description = "Detects base64 encoded payloads used to hide malicious code"
+        severity = "High"
+        remediation = "Review all base64 encoded content for hidden malicious payloads."
+    strings:
+        $o1 = "base64.b64decode" nocase
+        $o2 = "base64.b64encode" nocase
+        $o3 = "bWFsaWNpb3Vz" nocase
+    condition:
+        any of them
+}
+
+rule Python_Privilege_Escalation {
+    meta:
+        description = "Detects privilege escalation attempts"
+        severity = "Critical"
+        remediation = "Remove privilege escalation code and audit system permissions."
+    strings:
+        $p1 = "chmod u+s" nocase
+        $p2 = "sudo su" nocase
+        $p3 = "chmod 777" nocase
+        $p4 = "/etc/shadow" nocase
+        $p5 = "/etc/passwd" nocase
+    condition:
+        any of them
+}
+
+rule Python_Persistence {
+    meta:
+        description = "Detects persistence mechanisms like cron jobs or registry keys"
+        severity = "High"
+        remediation = "Remove persistence mechanism and check crontab and registry for unauthorized entries."
+    strings:
+        $p1 = "/etc/crontab" nocase
+        $p2 = "CurrentVersion\\Run" nocase
+        $p3 = "reg add HKCU" nocase
+        $p4 = "/tmp/malware" nocase
+    condition:
+        any of them
+}
+
+rule Unsafe_Deserialization {
+    meta:
+        description = "Detects unsafe pickle deserialization which can lead to RCE"
+        severity = "High"
+        remediation = "Replace pickle with safe alternatives like json or msgpack."
+    strings:
+        $p1 = "pickle.loads" nocase
+        $p2 = "pickle.load(" nocase
+        $p3 = "cPickle" nocase
+    condition:
+        any of them
+}
 """
 
 SEVERITY_ORDER = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
