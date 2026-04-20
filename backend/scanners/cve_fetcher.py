@@ -134,7 +134,7 @@ def fetch_cve_by_id(cve_id: str) -> Optional[Dict]:
         print(f"[CVE] Fetch error for '{cve_id}': {e}")
         return None
 
-def fetch_recent_cves(days_back: int = 7, limit: int = 20) -> List[Dict]:
+def fetch_recent_cves(days_back: int = 30, limit: int = 50) -> List[Dict]:
     """
     Fetch recently published CVEs for dashboard feed.
     Falls back to most recent locally cached CVEs when offline.

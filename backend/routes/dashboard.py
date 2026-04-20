@@ -53,7 +53,7 @@ def stats():
 @jwt_required()
 def recent_cves():
     try:
-        cves = fetch_recent_cves(days_back=7, limit=10)
+        cves = fetch_recent_cves(days_back=30, limit=50)
     except Exception:
         cves = []
     return jsonify(cves), 200
