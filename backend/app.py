@@ -9,6 +9,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from database import db, init_db
@@ -28,8 +30,14 @@ def create_app():
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "vulnscan-secret-key-2026")
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False
 
-    # Extensions
+    # Extensionsf
     CORS(app, origins=["*"], supports_credentials=True)
+    limiter = Limiter(
+      get_remote_address,
+      app=app,
+      default_limits=["200 per day", "50 per hour"],
+      storage_uri="memory://"
+    )
     JWTManager(app)
     db.init_app(app)
 
