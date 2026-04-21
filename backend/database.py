@@ -156,6 +156,7 @@ class ScanResult(db.Model):
     description      = db.Column(db.Text)
     remediation      = db.Column(db.Text)
     raw_detail       = db.Column(db.Text)
+    host             =db.Column(db.String(100))    
 
     scan          = db.relationship("Scan",          back_populates="results")
     vulnerability = db.relationship("Vulnerability", back_populates="scan_results")
@@ -172,6 +173,7 @@ class ScanResult(db.Model):
             "severity":     self.severity,
             "description":  self.description,
             "remediation":  self.remediation,
+            "host":         self.host,
             "cve":          self.vulnerability.cve_id    if self.vulnerability else None,
             "cvss_score":   self.vulnerability.cvss_score if self.vulnerability else None,
         }

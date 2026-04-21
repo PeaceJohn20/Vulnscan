@@ -95,6 +95,7 @@ def run_port_scan(target: str, scan_type: str = "full") -> Dict[str, Any]:
                 results.append({
                     "finding_type": "open_port",
                     "port":         port,
+                    "host":         host,
                     "protocol":     proto,
                     "service":      service_name,
                     "version":      version or "unknown",

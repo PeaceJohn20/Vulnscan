@@ -410,7 +410,7 @@ function Dashboard({ user }) {
       </div>
 
       <div className="card" style={{marginTop:0}}>
-        <div className="card-title">🌐 Live CVE Feed (Last 7 Days)</div>
+        <div className="card-title">🌐 Live CVE Feed (Last 30 Days)</div>
         {cves.length === 0
           ? <div className="alert alert-info">CVE feed unavailable — check NVD API connectivity.</div>
           : (
@@ -656,7 +656,7 @@ function ScansPage() {
                     <Badge text={r.severity} />
                     <span style={{fontWeight:600,fontSize:13}}>
                       {r.finding_type?.replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}
-                      {r.port ? ` — Port ${r.port}/${r.protocol}` : ""}
+                      {r.host ? ` [${r.host}]` : ""}{r.port ? ` — Port ${r.port}/${r.protocol}` : ""}
                       {r.service ? ` (${r.service})` : ""}
                     </span>
                   </div>

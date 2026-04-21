@@ -39,6 +39,7 @@ def _save_finding(app, scan_id, finding, vuln_id=None):
             scan_id         =scan_id,
             vulnerability_id=vuln_id,
             finding_type    =finding.get("finding_type", "unknown"),
+            host            =finding.get("host"),
             port            =finding.get("port"),
             protocol        =finding.get("protocol"),
             service         =finding.get("service"),
