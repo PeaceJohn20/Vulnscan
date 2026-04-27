@@ -83,7 +83,7 @@ def run_full_scan(app, scan_id):
                                 finding["severity"] = cve_sev
                             _save_finding(app, scan_id, finding, vuln_id)
                         except Exception:
-                            _save_finding(app, scan_id, finding)
+                            pass
                 else:
                     _save_finding(app, scan_id, finding)
             try:
