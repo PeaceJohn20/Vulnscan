@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 import json
 
 from database import db, Scan, ScanResult, Vulnerability
-from scanners.nmap_scanner  import run_port_scan
-from scanners.cve_fetcher   import correlate_service_cves
+from scanners.nmap_scanner   import run_port_scan
+from scanners.cve_fetcher    import correlate_service_cves
 from scanners.bandit_scanner import scan_code_string
 from scanners.yara_scanner   import scan_string as yara_scan_string
 
@@ -36,18 +36,18 @@ def _upsert_vulnerability(app, cve_data):
 def _save_finding(app, scan_id, finding, vuln_id=None):
     with app.app_context():
         result = ScanResult(
-            scan_id         =scan_id,
-            vulnerability_id=vuln_id,
-            finding_type    =finding.get("finding_type", "unknown"),
-            host            =finding.get("host"),
-            port            =finding.get("port"),
-            protocol        =finding.get("protocol"),
-            service         =finding.get("service"),
-            version         =finding.get("version"),
-            severity        =finding.get("severity", "Low"),
-            description     =finding.get("description", ""),
-            remediation     =finding.get("remediation", ""),
-            raw_detail      =finding.get("raw_detail", ""),
+            scan_id          =scan_id,
+            vulnerability_id =vuln_id,
+            finding_type     =finding.get("finding_type", "unknown"),
+            host             =finding.get("host"),
+            port             =finding.get("port"),
+            protocol         =finding.get("protocol"),
+            service          =finding.get("service"),
+            version          =finding.get("version"),
+            severity         =finding.get("severity", "Low"),
+            description      =finding.get("description", ""),
+            remediation      =finding.get("remediation", ""),
+            raw_detail       =finding.get("raw_detail", ""),
         )
         db.session.add(result)
         db.session.commit()
@@ -65,6 +65,7 @@ def run_full_scan(app, scan_id):
         try:
             nmap_result = run_port_scan(scan.target, scan.scan_type)
             all_raw.append(nmap_result.get("raw_output", ""))
+
             for finding in nmap_result.get("open_ports", []):
                 try:
                     cves = correlate_service_cves(
@@ -73,29 +74,40 @@ def run_full_scan(app, scan_id):
                     )
                 except Exception:
                     cves = []
+
                 if cves:
-                    for cve_data in cves[:2]:
-                        try:
-                            vuln_id = _upsert_vulnerability(app, cve_data)
-                            sev_order = {"Critical":4,"High":3,"Medium":2,"Low":1}
-                            cve_sev   = cve_data.get("severity", "Low")
-                            if sev_order.get(cve_sev, 1) > sev_order.get(finding["severity"], 1):
-                                finding["severity"] = cve_sev
-                            _save_finding(app, scan_id, finding, vuln_id)
-                        except Exception:
-                            pass
+                    # Save only the highest severity CVE — prevents duplicate findings
+                    sev_order = {"Critical":4, "High":3, "Medium":2, "Low":1}
+                    best_cve  = max(
+                        cves[:2],
+                        key=lambda c: sev_order.get(c.get("severity", "Low"), 1)
+                    )
+                    try:
+                        vuln_id = _upsert_vulnerability(app, best_cve)
+                        cve_sev = best_cve.get("severity", "Low")
+                        if sev_order.get(cve_sev, 1) > sev_order.get(finding["severity"], 1):
+                            finding["severity"] = cve_sev
+                        _save_finding(app, scan_id, finding, vuln_id)
+                    except Exception:
+                        _save_finding(app, scan_id, finding)
                 else:
                     _save_finding(app, scan_id, finding)
+
             try:
-                yara_result = yara_scan_string(nmap_result.get("raw_output", ""), filename="nmap_output")
+                yara_result = yara_scan_string(
+                    nmap_result.get("raw_output", ""),
+                    filename="nmap_output"
+                )
                 for finding in yara_result.get("findings", []):
                     _save_finding(app, scan_id, finding)
             except Exception:
                 pass
+
             scan.status     = "completed"
             scan.ended_at   = datetime.now(timezone.utc)
             scan.raw_output = "\n".join(all_raw)[:50000]
             db.session.commit()
+
         except Exception as e:
             scan.status     = "failed"
             scan.ended_at   = datetime.now(timezone.utc)
@@ -115,9 +127,11 @@ def run_code_scan(app, scan_id, code_content):
             bandit_result = scan_code_string(code_content)
             for finding in bandit_result.get("findings", []):
                 _save_finding(app, scan_id, finding)
+
             yara_result = yara_scan_string(code_content, filename="submitted_code.py")
             for finding in yara_result.get("findings", []):
                 _save_finding(app, scan_id, finding)
+
             scan.status     = "completed"
             scan.ended_at   = datetime.now(timezone.utc)
             scan.raw_output = (
@@ -125,6 +139,7 @@ def run_code_scan(app, scan_id, code_content):
                 yara_result.get("raw_output", "")
             )[:50000]
             db.session.commit()
+
         except Exception as e:
             scan.status     = "failed"
             scan.ended_at   = datetime.now(timezone.utc)
