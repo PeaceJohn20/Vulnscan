@@ -11,7 +11,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 
 NVD_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-HEADERS  = {"User-Agent": "VulnScan/1.0"}
+HEADERS  = {"User-Agent": "VulnScan/1.0",
+            "apiKey": "a90b22ef-4ef1-48de-88cd-017f8bf4a4e8"
+}
 
 # ── Cache variables ───────────────────────────────────────
 _online_status = None
